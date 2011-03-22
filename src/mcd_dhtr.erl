@@ -16,6 +16,7 @@
 
 -record(state, {
     index_size,
+    peers,
     ring
 }).
 
@@ -37,6 +38,7 @@ init([Peers, ReplicationFactor]) ->
     ),
     State = #state{
         index_size = length(Peers),
+        peers = Peers,
         ring = Ring
     },
     {ok, State}.
@@ -44,9 +46,11 @@ init([Peers, ReplicationFactor]) ->
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
-handle_call({do, Command}, _From, State = #state{ index_size = IndexSize, ring = Ring }) ->
-    [_, Key | _] = tuple_to_list(Command),
-    Nodes = array:get(index(Key, IndexSize), Ring),
+handle_call({do, Command}, _From, State = #state{ index_size = IndexSize, ring = Ring, peers = Peers }) ->
+    Nodes = case tuple_to_list(Command) of
+        [_, Key | _ ] -> array:get(index(Key, IndexSize), Ring);
+        _ -> Peers
+    end,
     Result = [rpc:call(Node, mcd, do, [localmcd, Command]) || Node <- Nodes],
     {reply, reduce(Result), State}.
 
